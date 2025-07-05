@@ -23,8 +23,18 @@
   home.file.".claude/CLAUDE.md".source = ./CLAUDE.md;
   
   # Copy hook scripts with executable permissions
+  home.file.".claude/hooks/common-helpers.sh" = {
+    source = ./hooks/common-helpers.sh;
+    executable = true;
+  };
+  
   home.file.".claude/hooks/smart-lint.sh" = {
     source = ./hooks/smart-lint.sh;
+    executable = true;
+  };
+  
+  home.file.".claude/hooks/smart-test.sh" = {
+    source = ./hooks/smart-test.sh;
     executable = true;
   };
   
