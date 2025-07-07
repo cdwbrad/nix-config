@@ -565,12 +565,6 @@ linters:
           - wrapcheck     # Test error handling can be simpler
           - containedctx  # Tests might store context for lifecycle
           
-      # Allow time.Sleep in test files only
-      - path: _test\.go
-        text: "time.Sleep"
-        linters:
-          - forbidigo
-          
       # Allow panic in main.go for CLI apps
       - path: main\.go
         text: "panic"
