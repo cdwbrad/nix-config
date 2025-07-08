@@ -61,6 +61,10 @@
       nodePackages.prettier
       black
       gofumpt
+
+      # Python testing
+      python3Packages.pytest
+      python3Packages.pyyaml
     ];
   };
 

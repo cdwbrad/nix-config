@@ -24,63 +24,16 @@
 # Don't use set -e - we need to control exit codes carefully
 set +e
 
-# ============================================================================
-# COLOR DEFINITIONS AND UTILITIES
-# ============================================================================
-
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
-# Debug mode
-CLAUDE_HOOKS_DEBUG="${CLAUDE_HOOKS_DEBUG:-0}"
-
-# Logging functions
-log_debug() {
-    [[ "$CLAUDE_HOOKS_DEBUG" == "1" ]] && echo -e "${CYAN}[DEBUG]${NC} $*" >&2
-}
-
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $*" >&2
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $*" >&2
-}
-
-log_success() {
-    echo -e "${GREEN}[OK]${NC} $*" >&2
-}
-
-# Performance timing
-time_start() {
-    if [[ "$CLAUDE_HOOKS_DEBUG" == "1" ]]; then
-        echo $(($(date +%s%N)/1000000))
-    fi
-}
-
-time_end() {
-    if [[ "$CLAUDE_HOOKS_DEBUG" == "1" ]]; then
-        local start=$1
-        local end=$(($(date +%s%N)/1000000))
-        local duration=$((end - start))
-        log_debug "Execution time: ${duration}ms"
-    fi
-}
-
-# Check if a command exists
-command_exists() {
-    command -v "$1" &> /dev/null
-}
+# Source common helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common-helpers.sh"
 
 # ============================================================================
 # PROJECT DETECTION
 # ============================================================================
 
-detect_project_type() {
+# Add Tilt project detection to the common detect_project_type function
+detect_project_type_with_tilt() {
     local project_type="unknown"
     local types=()
     
@@ -134,43 +87,18 @@ get_modified_files() {
     fi
 }
 
-# Check if we should skip a file
-should_skip_file() {
-    local file="$1"
-    
-    # Check .claude-hooks-ignore if it exists
-    if [[ -f ".claude-hooks-ignore" ]]; then
-        while IFS= read -r pattern; do
-            # Skip comments and empty lines
-            [[ -z "$pattern" || "$pattern" =~ ^[[:space:]]*# ]] && continue
-            
-            # Check if file matches pattern
-            if [[ "$file" == $pattern ]]; then
-                log_debug "Skipping $file due to .claude-hooks-ignore pattern: $pattern"
-                return 0
-            fi
-        done < ".claude-hooks-ignore"
-    fi
-    
-    # Check for inline skip comments
-    if [[ -f "$file" ]] && head -n 5 "$file" 2>/dev/null | grep -q "claude-hooks-disable"; then
-        log_debug "Skipping $file due to inline claude-hooks-disable comment"
-        return 0
-    fi
-    
-    return 1
-}
-
 # ============================================================================
-# ERROR TRACKING
+# ERROR TRACKING (extends common-helpers.sh)
 # ============================================================================
 
+# Use the CLAUDE_HOOKS_ERRORS array from common-helpers.sh but with a different name for summary
 declare -a CLAUDE_HOOKS_SUMMARY=()
-declare -i CLAUDE_HOOKS_ERROR_COUNT=0
 
+# Override add_error to also add to summary
 add_error() {
     local message="$1"
     CLAUDE_HOOKS_ERROR_COUNT+=1
+    CLAUDE_HOOKS_ERRORS+=("${RED}❌${NC} $message")
     CLAUDE_HOOKS_SUMMARY+=("${RED}❌${NC} $message")
 }
 
@@ -248,13 +176,34 @@ lint_python() {
     
     log_info "Running Python linters..."
     
+    # Find Python files
+    local py_files=$(find . -name "*.py" -type f | grep -v -E "(venv/|\.venv/|__pycache__|\.git/)" | head -100)
+    
+    if [[ -z "$py_files" ]]; then
+        log_debug "No Python files found"
+        return 0
+    fi
+    
+    # Filter out files that should be skipped
+    local filtered_files=""
+    for file in $py_files; do
+        if ! should_skip_file "$file"; then
+            filtered_files="$filtered_files$file "
+        fi
+    done
+    
+    if [[ -z "$filtered_files" ]]; then
+        log_debug "All Python files were skipped by .claude-hooks-ignore"
+        return 0
+    fi
+    
     # Black formatting
     if command_exists black; then
         local black_output
-        if ! black_output=$(black . --check 2>&1); then
+        if ! black_output=$(echo "$filtered_files" | xargs black --check 2>&1); then
             # Apply formatting and capture any errors
             local format_output
-            if ! format_output=$(black . 2>&1); then
+            if ! format_output=$(echo "$filtered_files" | xargs black 2>&1); then
                 add_error "Python formatting failed"
                 echo "$format_output" >&2
             fi
@@ -264,13 +213,13 @@ lint_python() {
     # Linting
     if command_exists ruff; then
         local ruff_output
-        if ! ruff_output=$(ruff check --fix . 2>&1); then
+        if ! ruff_output=$(echo "$filtered_files" | xargs ruff check --fix 2>&1); then
             add_error "Ruff found issues"
             echo "$ruff_output" >&2
         fi
     elif command_exists flake8; then
         local flake8_output
-        if ! flake8_output=$(flake8 . 2>&1); then
+        if ! flake8_output=$(echo "$filtered_files" | xargs flake8 2>&1); then
             add_error "Flake8 found issues"
             echo "$flake8_output" >&2
         fi
@@ -287,6 +236,27 @@ lint_javascript() {
     
     log_info "Running JavaScript/TypeScript linters..."
     
+    # Find JS/TS files
+    local js_files=$(find . \( -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" \) -type f | grep -v -E "(node_modules/|dist/|build/|\.git/)" | head -100)
+    
+    if [[ -z "$js_files" ]]; then
+        log_debug "No JavaScript/TypeScript files found"
+        return 0
+    fi
+    
+    # Filter out files that should be skipped
+    local filtered_files=""
+    for file in $js_files; do
+        if ! should_skip_file "$file"; then
+            filtered_files="$filtered_files$file "
+        fi
+    done
+    
+    if [[ -z "$filtered_files" ]]; then
+        log_debug "All JavaScript/TypeScript files were skipped by .claude-hooks-ignore"
+        return 0
+    fi
+    
     # Check for ESLint
     if [[ -f "package.json" ]] && grep -q "eslint" package.json 2>/dev/null; then
         if command_exists npm; then
@@ -302,20 +272,20 @@ lint_javascript() {
     if [[ -f ".prettierrc" ]] || [[ -f "prettier.config.js" ]] || [[ -f ".prettierrc.json" ]]; then
         if command_exists prettier; then
             local prettier_output
-            if ! prettier_output=$(prettier --check . 2>&1); then
+            if ! prettier_output=$(echo "$filtered_files" | xargs prettier --check 2>&1); then
                 # Apply formatting and capture any errors
                 local format_output
-                if ! format_output=$(prettier --write . 2>&1); then
+                if ! format_output=$(echo "$filtered_files" | xargs prettier --write 2>&1); then
                     add_error "Prettier formatting failed"
                     echo "$format_output" >&2
                 fi
             fi
         elif command_exists npx; then
             local prettier_output
-            if ! prettier_output=$(npx prettier --check . 2>&1); then
+            if ! prettier_output=$(echo "$filtered_files" | xargs npx prettier --check 2>&1); then
                 # Apply formatting and capture any errors
                 local format_output
-                if ! format_output=$(npx prettier --write . 2>&1); then
+                if ! format_output=$(echo "$filtered_files" | xargs npx prettier --write 2>&1); then
                     add_error "Prettier formatting failed"
                     echo "$format_output" >&2
                 fi
@@ -333,6 +303,27 @@ lint_rust() {
     fi
     
     log_info "Running Rust linters..."
+    
+    # Find Rust files
+    local rust_files=$(find . -name "*.rs" -type f | grep -v -E "(target/|\.git/)" | head -100)
+    
+    if [[ -z "$rust_files" ]]; then
+        log_debug "No Rust files found"
+        return 0
+    fi
+    
+    # Filter out files that should be skipped
+    local filtered_files=""
+    for file in $rust_files; do
+        if ! should_skip_file "$file"; then
+            filtered_files="$filtered_files$file "
+        fi
+    done
+    
+    if [[ -z "$filtered_files" ]]; then
+        log_debug "All Rust files were skipped by .claude-hooks-ignore"
+        return 0
+    fi
     
     if command_exists cargo; then
         local fmt_output
@@ -370,6 +361,20 @@ lint_nix() {
     
     if [[ -z "$nix_files" ]]; then
         log_debug "No Nix files found"
+        return 0
+    fi
+    
+    # Filter out files that should be skipped
+    local filtered_files=""
+    for file in $nix_files; do
+        if ! should_skip_file "$file"; then
+            filtered_files="$filtered_files$file "
+        fi
+    done
+    
+    nix_files="$filtered_files"
+    if [[ -z "$nix_files" ]]; then
+        log_debug "All Nix files were skipped by .claude-hooks-ignore"
         return 0
     fi
     
@@ -443,7 +448,7 @@ load_config
 START_TIME=$(time_start)
 
 # Detect project type
-PROJECT_TYPE=$(detect_project_type)
+PROJECT_TYPE=$(detect_project_type_with_tilt)
 log_info "Project type: $PROJECT_TYPE"
 
 # Main execution

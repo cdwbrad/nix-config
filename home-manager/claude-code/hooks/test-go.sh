@@ -73,6 +73,12 @@ run_go_tests() {
         base=$(basename "$target" .go)
         test_file="${dir}/${base}_test.go"
         
+        # Check if the file should be skipped
+        if should_skip_file "$target"; then
+            log_debug "Skipping tests for $target due to .claude-hooks-ignore"
+            return 0
+        fi
+        
         # If this IS a test file, run it directly
         if [[ "$target" =~ _test\.go$ ]]; then
             echo -e "${BLUE}🧪 Running test file directly: $target${NC}" >&2

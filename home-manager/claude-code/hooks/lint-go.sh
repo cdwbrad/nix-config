@@ -52,8 +52,12 @@ run_go_direct_lint() {
     # Check for forbidden patterns first
     check_go_forbidden_patterns
     
-    # Format check
-    local unformatted_files=$(gofmt -l . 2>/dev/null | grep -v vendor/ || true)
+    # Format check - filter files through should_skip_file
+    local unformatted_files=$(gofmt -l . 2>/dev/null | grep -v vendor/ | while read -r file; do
+        if ! should_skip_file "$file"; then
+            echo "$file"
+        fi
+    done || true)
     
     if [[ -n "$unformatted_files" ]]; then
         local fmt_output
@@ -63,10 +67,24 @@ run_go_direct_lint() {
         fi
     fi
     
-    # Linting
+    # Linting - build exclude args from .claude-hooks-ignore
     if command_exists golangci-lint; then
+        local exclude_args=""
+        if [[ -f ".claude-hooks-ignore" ]]; then
+            # Convert ignore patterns to golangci-lint skip-files patterns
+            while IFS= read -r pattern; do
+                [[ -z "$pattern" || "$pattern" =~ ^[[:space:]]*# ]] && continue
+                # Remove quotes and adjust pattern for golangci-lint
+                pattern="${pattern//\'/}"
+                pattern="${pattern//\"/}"
+                exclude_args="${exclude_args} --skip-files=${pattern}"
+            done < ".claude-hooks-ignore"
+        fi
+        
         local lint_output
-        if ! lint_output=$(golangci-lint run --timeout=2m 2>&1); then
+        local lint_cmd="golangci-lint run --timeout=2m${exclude_args}"
+        log_debug "Running: $lint_cmd"
+        if ! lint_output=$($lint_cmd 2>&1); then
             add_error "golangci-lint found issues"
             echo "$lint_output" >&2
         fi
@@ -85,11 +103,29 @@ run_go_direct_lint() {
 check_go_forbidden_patterns() {
     log_info "Checking for forbidden Go patterns..."
     
-    # Find all Go files
-    local go_files=$(find . -name "*.go" -type f | grep -v -E "(vendor/|\.git/)" | head -100)
+    # Find all Go files and filter them through should_skip_file
+    local go_files=$(find . -name "*.go" -type f | grep -v -E "(vendor/|\.git/)" | while read -r file; do
+        if ! should_skip_file "$file"; then
+            echo "$file"
+        fi
+    done | head -100)
     
     if [[ -z "$go_files" ]]; then
         log_debug "No Go files found to check"
+        return 0
+    fi
+    
+    # Filter out files that should be skipped
+    local filtered_files=""
+    for file in $go_files; do
+        if ! should_skip_file "$file"; then
+            filtered_files="$filtered_files$file "
+        fi
+    done
+    
+    go_files="$filtered_files"
+    if [[ -z "$go_files" ]]; then
+        log_debug "All Go files were skipped by .claude-hooks-ignore"
         return 0
     fi
     

@@ -174,6 +174,12 @@ run_python_tests() {
     local dir=$(dirname "$file")
     local base=$(basename "$file" .py)
     
+    # Check if the file should be skipped
+    if should_skip_file "$file"; then
+        log_debug "Skipping tests for $file due to .claude-hooks-ignore"
+        return 0
+    fi
+    
     # If this IS a test file, run it directly
     if [[ "$file" =~ (test_.*|.*_test)\.py$ ]]; then
         echo -e "${BLUE}🧪 Running test file directly: $file${NC}" >&2
@@ -303,6 +309,12 @@ run_javascript_tests() {
     local file="$1"
     local dir=$(dirname "$file")
     local base=$(basename "$file" | sed 's/\.[tj]sx\?$//' | sed 's/\.(test|spec)$//')
+    
+    # Check if the file should be skipped
+    if should_skip_file "$file"; then
+        log_debug "Skipping tests for $file due to .claude-hooks-ignore"
+        return 0
+    fi
     
     # If this IS a test file, run it directly
     if [[ "$file" =~ \.(test|spec)\.[tj]sx?$ ]]; then

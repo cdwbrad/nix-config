@@ -16,6 +16,12 @@ run_tilt_tests() {
         return 0
     fi
     
+    # Check if the file should be skipped
+    if should_skip_file "$file"; then
+        log_debug "Skipping tests for $file due to .claude-hooks-ignore"
+        return 0
+    fi
+    
     local dir=$(dirname "$file")
     local base=$(basename "$file")
     

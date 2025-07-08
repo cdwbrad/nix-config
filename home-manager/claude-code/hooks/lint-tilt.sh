@@ -24,6 +24,20 @@ lint_tilt() {
         return 0
     fi
     
+    # Filter out files that should be skipped
+    local filtered_files=""
+    for file in $tiltfiles; do
+        if ! should_skip_file "$file"; then
+            filtered_files="$filtered_files$file "
+        fi
+    done
+    
+    tiltfiles="$filtered_files"
+    if [[ -z "$tiltfiles" ]]; then
+        log_debug "All Tiltfiles were skipped by .claude-hooks-ignore"
+        return 0
+    fi
+    
     # Check for Makefile with lint-tilt target
     if [[ -f "Makefile" ]]; then
         local has_lint_tilt=$(grep -E "^lint-tilt:" Makefile 2>/dev/null || echo "")
