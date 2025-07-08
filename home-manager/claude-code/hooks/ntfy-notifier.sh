@@ -123,11 +123,20 @@ get_terminal_title() {
             # Not in a tmux session, just get the shell's tty
             title="tty: $(tty 2>/dev/null | xargs basename)"
         fi
+    elif [[ "${TERM_PROGRAM:-}" == "kitty" ]] && command -v kitty >/dev/null 2>&1; then
+        # Kitty: Get window title using kitty remote control
+        # This requires allow_remote_control to be enabled in kitty.conf
+        title=$(kitty @ ls | jq -r '.[] | select(.is_focused) | .tabs[] | select(.is_focused) | .title' 2>/dev/null || echo "")
+        if [[ -z "$title" ]]; then
+            # Fallback: get from environment if remote control is disabled
+            title="${KITTY_WINDOW_TITLE:-Kitty}"
+        fi
     elif [[ "$(uname)" == "Darwin" ]] && command -v osascript >/dev/null 2>&1; then
-        # macOS: Get Terminal or iTerm2 window title
+        # macOS: Get Terminal or iTerm2 window title (only if they're the active terminal)
         if [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]]; then
             title=$(osascript -e 'tell application "iTerm2" to name of current window' 2>/dev/null || echo "")
-        else
+        elif [[ "${TERM_PROGRAM:-}" == "Apple_Terminal" ]]; then
+            # Only try to get Terminal.app title if we're actually running in Terminal.app
             title=$(osascript -e 'tell application "Terminal" to name of front window' 2>/dev/null || echo "")
         fi
     elif [[ -n "${DISPLAY:-}" ]] && command -v xprop >/dev/null 2>&1; then

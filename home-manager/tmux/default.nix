@@ -40,7 +40,8 @@ let
     echo "Sent link to client terminal: $URL"
   '';
 
-in {
+in
+{
   config = {
     programs.tmux = {
       enable = true;
@@ -50,7 +51,7 @@ in {
       mouse = true;
       escapeTime = 0;
       terminal = "xterm-256color";
-      
+
       plugins = with pkgs.tmuxPlugins; [
         sensible
         yank
