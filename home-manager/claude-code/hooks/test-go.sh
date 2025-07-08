@@ -8,6 +8,9 @@
 # GO TEST CONFIGURATION
 # ============================================================================
 
+# Initialize GO_TEST_CMD to empty to avoid unbound variable errors
+GO_TEST_CMD=""
+
 # Set up the Go test command based on available tools
 setup_go_test_command() {
     local base_cmd=""
