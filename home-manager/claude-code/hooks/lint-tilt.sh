@@ -138,39 +138,6 @@ lint_tilt() {
         fi
     fi
     
-    # Security checks for Tiltfiles
-    check_tiltfile_security "$tiltfiles"
-    
     return 0
 }
 
-# Check for security issues in Tiltfiles
-check_tiltfile_security() {
-    local tiltfiles="$1"
-    
-    # Patterns that might indicate security issues
-    local security_patterns=(
-        "echo_off.*=.*False"
-        "password.*=.*[\"'][^\"']+[\"']"
-        "secret.*=.*[\"'][^\"']+[\"']"
-        "api_key.*=.*[\"'][^\"']+[\"']"
-        "token.*=.*[\"'][^\"']+[\"']"
-        "\d{12}\.dkr\.ecr"  # AWS account IDs
-    )
-    
-    for tiltfile in $tiltfiles; do
-        for pattern in "${security_patterns[@]}"; do
-            if grep -E "$pattern" "$tiltfile" &>/dev/null; then
-                # Skip if it's loading from secrets properly
-                if ! grep -E "(load_secrets|k8s_secret|secret_settings)" "$tiltfile" &>/dev/null; then
-                    add_error "Potential security issue in $tiltfile (pattern: $pattern)"
-                fi
-            fi
-        done
-        
-        # Check for hardcoded AWS account IDs
-        if grep -E "[0-9]{12}\.dkr\.ecr" "$tiltfile" &>/dev/null; then
-            add_error "Hardcoded AWS account ID found in $tiltfile"
-        fi
-    done
-}

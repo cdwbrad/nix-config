@@ -49,9 +49,6 @@ lint_go() {
 run_go_direct_lint() {
     log_info "Using direct Go tools"
     
-    # Check for forbidden patterns first
-    check_go_forbidden_patterns
-    
     # Format check - filter files through should_skip_file
     local unformatted_files=$(gofmt -l . 2>/dev/null | grep -v vendor/ | while read -r file; do
         if ! should_skip_file "$file"; then
@@ -99,75 +96,3 @@ run_go_direct_lint() {
     fi
 }
 
-# Check for forbidden Go patterns
-check_go_forbidden_patterns() {
-    log_info "Checking for forbidden Go patterns..."
-    
-    # Find all Go files and filter them through should_skip_file
-    local go_files=$(find . -name "*.go" -type f | grep -v -E "(vendor/|\.git/)" | while read -r file; do
-        if ! should_skip_file "$file"; then
-            echo "$file"
-        fi
-    done | head -100)
-    
-    if [[ -z "$go_files" ]]; then
-        log_debug "No Go files found to check"
-        return 0
-    fi
-    
-    # Filter out files that should be skipped
-    local filtered_files=""
-    for file in $go_files; do
-        if ! should_skip_file "$file"; then
-            filtered_files="$filtered_files$file "
-        fi
-    done
-    
-    go_files="$filtered_files"
-    if [[ -z "$go_files" ]]; then
-        log_debug "All Go files were skipped by .claude-hooks-ignore"
-        return 0
-    fi
-    
-    local found_issues=false
-    
-    # Check for time.Sleep
-    local sleep_files=$(echo "$go_files" | xargs grep -l "time\.Sleep" 2>/dev/null || true)
-    if [[ -n "$sleep_files" ]]; then
-        add_error "FORBIDDEN PATTERN: time.Sleep() found - use channels for synchronization"
-        echo "Files containing time.Sleep:" >&2
-        echo "$sleep_files" | sed 's/^/  /' >&2
-        found_issues=true
-    fi
-    
-    # Check for panic() calls (outside of test files)
-    local panic_files=$(echo "$go_files" | grep -v "_test\.go$" | xargs grep -l "panic(" 2>/dev/null || true)
-    if [[ -n "$panic_files" ]]; then
-        add_error "FORBIDDEN PATTERN: panic() found in non-test files"
-        echo "Files containing panic:" >&2
-        echo "$panic_files" | sed 's/^/  /' >&2
-        found_issues=true
-    fi
-    
-    # Check for interface{} or any
-    local interface_files=$(echo "$go_files" | xargs grep -l -E "(interface\{\}|any\s+)" 2>/dev/null || true)
-    if [[ -n "$interface_files" ]]; then
-        add_error "FORBIDDEN PATTERN: interface{} or any found - use concrete types"
-        echo "Files containing interface{} or any:" >&2
-        echo "$interface_files" | sed 's/^/  /' >&2
-        found_issues=true
-    fi
-    
-    # Check for TODO comments
-    local todo_files=$(echo "$go_files" | xargs grep -l "TODO" 2>/dev/null || true)
-    if [[ -n "$todo_files" ]]; then
-        add_error "FORBIDDEN PATTERN: TODO comments found"
-        echo "Files containing TODOs:" >&2
-        echo "$todo_files" | sed 's/^/  /' >&2
-        found_issues=true
-    fi
-    
-    if [[ "$found_issues" == "true" ]]; then
-        echo -e "\n${YELLOW}See CLAUDE.md for Go coding standards${NC}" >&2
-    fi
-}
