@@ -17,6 +17,8 @@ This is a flake-based Nix configuration managing multiple systems:
 - **macOS (darwin)**: `darwin-rebuild switch --flake ".#$(hostname -s)"`
 - **Shell alias**: `update` (configured in home-manager)
 
+**IMPORTANT**: After making changes to any Nix configuration files (including hooks), you MUST run `update` to apply the changes to the current system. Changes won't take effect until the system is rebuilt!
+
 ### Building Packages
 - **Build custom package**: `nix build .#<package>`
   - Available packages: myCaddy

@@ -5,7 +5,6 @@ This directory contains custom NixOS modules for system-level services and confi
 ## Structure
 
 - `services/` - System service modules
-  - `signal-cli-bot.nix` - Signal CLI bot service for automated messaging
 
 ## Usage
 
@@ -13,16 +12,16 @@ Import modules in your host configuration:
 
 ```nix
 imports = [
-  ../../modules/services/signal-cli-bot.nix
+  ../../modules/services/your-module.nix
 ];
 ```
 
 Then configure the service:
 
 ```nix
-services.signal-cli-bot = {
+services.your-service = {
   enable = true;
-  phoneNumber = "+1234567890";
+  # configuration options
 };
 ```
 

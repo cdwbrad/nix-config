@@ -109,6 +109,11 @@ detect_project_type() {
         types+=("nix")
     fi
     
+    # Tilt project
+    if [[ -f "Tiltfile" ]] || [[ -n "$(find . -maxdepth 3 -name "Tiltfile" -type f -print -quit 2>/dev/null)" ]] || [[ -n "$(find . -maxdepth 3 -name "*.tiltfile" -type f -print -quit 2>/dev/null)" ]]; then
+        types+=("tilt")
+    fi
+    
     # Return primary type or "mixed" if multiple
     if [[ ${#types[@]} -eq 1 ]]; then
         project_type="${types[0]}"
@@ -201,6 +206,7 @@ load_config() {
     export CLAUDE_HOOKS_JS_ENABLED="${CLAUDE_HOOKS_JS_ENABLED:-true}"
     export CLAUDE_HOOKS_RUST_ENABLED="${CLAUDE_HOOKS_RUST_ENABLED:-true}"
     export CLAUDE_HOOKS_NIX_ENABLED="${CLAUDE_HOOKS_NIX_ENABLED:-true}"
+    export CLAUDE_HOOKS_TILT_ENABLED="${CLAUDE_HOOKS_TILT_ENABLED:-true}"
     
     # Project-specific overrides
     if [[ -f ".claude-hooks-config.sh" ]]; then
@@ -218,105 +224,21 @@ load_config() {
 }
 
 # ============================================================================
-# GO LINTING
+# LANGUAGE-SPECIFIC LINTERS
 # ============================================================================
 
-lint_go() {
-    if [[ "${CLAUDE_HOOKS_GO_ENABLED:-true}" != "true" ]]; then
-        log_debug "Go linting disabled"
-        return 0
-    fi
-    
-    log_info "Running Go formatting and linting..."
-    
-    # Check if Makefile exists with fmt and lint targets
-    if [[ -f "Makefile" ]]; then
-        local has_fmt=$(grep -E "^fmt:" Makefile 2>/dev/null || echo "")
-        local has_lint=$(grep -E "^lint:" Makefile 2>/dev/null || echo "")
-        
-        if [[ -n "$has_fmt" && -n "$has_lint" ]]; then
-            log_info "Using Makefile targets"
-            
-            local fmt_output
-            if ! fmt_output=$(make fmt 2>&1); then
-                add_error "Go formatting failed (make fmt)"
-                echo "$fmt_output" >&2
-            fi
-            
-            local lint_output
-            if ! lint_output=$(make lint 2>&1); then
-                add_error "Go linting failed (make lint)"
-                echo "$lint_output" >&2
-            fi
-        else
-            # Fallback to direct commands
-            log_info "Using direct Go tools"
-            
-            # Format check
-            local unformatted_files=$(gofmt -l . 2>/dev/null | grep -v vendor/ || true)
-            
-            if [[ -n "$unformatted_files" ]]; then
-                local fmt_output
-                if ! fmt_output=$(gofmt -w . 2>&1); then
-                    add_error "Go formatting failed"
-                    echo "$fmt_output" >&2
-                fi
-            fi
-            
-            # Linting
-            if command_exists golangci-lint; then
-                local lint_output
-                if ! lint_output=$(golangci-lint run --timeout=2m 2>&1); then
-                    add_error "golangci-lint found issues"
-                    echo "$lint_output" >&2
-                fi
-            elif command_exists go; then
-                local vet_output
-                if ! vet_output=$(go vet ./... 2>&1); then
-                    add_error "go vet found issues"
-                    echo "$vet_output" >&2
-                fi
-            else
-                log_error "No Go linting tools available - install golangci-lint or go"
-            fi
-        fi
-    else
-        # No Makefile, use direct commands
-        log_info "Using direct Go tools"
-        
-        # Format check
-        local unformatted_files=$(gofmt -l . 2>/dev/null | grep -v vendor/ || true)
-        
-        if [[ -n "$unformatted_files" ]]; then
-            local fmt_output
-            if ! fmt_output=$(gofmt -w . 2>&1); then
-                add_error "Go formatting failed"
-                echo "$fmt_output" >&2
-            fi
-        fi
-        
-        # Linting
-        if command_exists golangci-lint; then
-            local lint_output
-            if ! lint_output=$(golangci-lint run --timeout=2m 2>&1); then
-                add_error "golangci-lint found issues"
-                echo "$lint_output" >&2
-            fi
-        elif command_exists go; then
-            local vet_output
-            if ! vet_output=$(go vet ./... 2>&1); then
-                add_error "go vet found issues"
-                echo "$vet_output" >&2
-            fi
-        else
-            log_error "No Go linting tools available - install golangci-lint or go"
-        fi
-    fi
-}
+# Source language-specific linting functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ============================================================================
-# OTHER LANGUAGE LINTERS
-# ============================================================================
+# Source Go linting if available
+if [[ -f "${SCRIPT_DIR}/lint-go.sh" ]]; then
+    source "${SCRIPT_DIR}/lint-go.sh"
+fi
+
+# Source Tilt linting if available
+if [[ -f "${SCRIPT_DIR}/lint-tilt.sh" ]]; then
+    source "${SCRIPT_DIR}/lint-tilt.sh"
+fi
 
 lint_python() {
     if [[ "${CLAUDE_HOOKS_PYTHON_ENABLED:-true}" != "true" ]]; then
@@ -538,6 +460,13 @@ main() {
                 "javascript") lint_javascript ;;
                 "rust") lint_rust ;;
                 "nix") lint_nix ;;
+                "tilt") 
+                    if type -t lint_tilt &>/dev/null; then
+                        lint_tilt
+                    else
+                        log_debug "Tilt linting function not available"
+                    fi
+                    ;;
             esac
             
             # Fail fast if configured
@@ -553,6 +482,13 @@ main() {
             "javascript") lint_javascript ;;
             "rust") lint_rust ;;
             "nix") lint_nix ;;
+            "tilt") 
+                if type -t lint_tilt &>/dev/null; then
+                    lint_tilt
+                else
+                    log_debug "Tilt linting function not available"
+                fi
+                ;;
             "unknown") 
                 log_info "No recognized project type, skipping checks"
                 ;;

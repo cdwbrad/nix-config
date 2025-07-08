@@ -43,6 +43,11 @@
       gnumake
       yq
 
+      # Tilt/Starlark tools
+      tilt
+      buildifier
+      bazel-buildtools # includes buildozer and unused_deps
+
       # LSP servers
       lua-language-server
       pyright

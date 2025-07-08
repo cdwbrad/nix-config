@@ -6,7 +6,6 @@ in
   # You can import other NixOS modules here
   imports = [
     ../common.nix
-    ../../modules/services/signal-cli-bot.nix
 
     # You can also split up your configuration and import pieces of it here:
     # ./users.nix
@@ -238,13 +237,6 @@ in
     '';
   };
 
-  # Signal CLI Bot configuration
-  # Create /etc/signal-bot/phone-number with: echo "+1234567890" | sudo tee /etc/signal-bot/phone-number
-  services.signal-cli-bot = {
-    enable = true;
-    phoneNumberFile = "/etc/signal-bot/phone-number";
-    registrationComplete = true;
-  };
 
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
   system.stateVersion = "25.05";

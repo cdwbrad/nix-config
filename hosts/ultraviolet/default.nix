@@ -2,11 +2,18 @@ let
   system = "x86_64-linux";
   user = "joshsymonds";
 in
-{ inputs, outputs, lib, config, pkgs, ... }: {
+{
+  inputs,
+  outputs,
+  lib,
+  config,
+  pkgs,
+  ...
+}:
+{
   # You can import other NixOS modules here
   imports = [
     ../common.nix
-    ../../modules/services/signal-cli-bot.nix
 
     # You can also split up your configuration and import pieces of it here:
     # ./users.nix
@@ -86,26 +93,39 @@ in
       enable = true;
       checkReversePath = "loose";
       trustedInterfaces = [ "tailscale0" ];
-      allowedUDPPorts = [ 
-        51820 
+      allowedUDPPorts = [
+        51820
         config.services.tailscale.port
       ];
-      allowedTCPPorts = [ 
-        22 80 443 9437
+      allowedTCPPorts = [
+        22
+        80
+        443
+        9437
       ];
     };
     defaultGateway = "172.31.0.1";
     nameservers = [ "172.31.0.1" ];
-    interfaces.enp0s31f6.ipv4.addresses = [{
-      address = "172.31.0.200";
-      prefixLength = 24;
-    }];
+    interfaces.enp0s31f6.ipv4.addresses = [
+      {
+        address = "172.31.0.200";
+        prefixLength = 24;
+      }
+    ];
     interfaces.enp0s20f0u12.useDHCP = false;
   };
 
   boot = {
-    kernelModules = [ "coretemp" "kvm-intel" "i915" ];
-    supportedFilesystems = [ "ntfs" "nfs" "nfs4" ];
+    kernelModules = [
+      "coretemp"
+      "kvm-intel"
+      "i915"
+    ];
+    supportedFilesystems = [
+      "ntfs"
+      "nfs"
+      "nfs4"
+    ];
     kernelParams = [
       "intel_pstate=active"
       "i915.enable_fbc=1"
@@ -136,9 +156,11 @@ in
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID0OvTKlW2Vk5WA11YOQ6SNDS4KsT9I1ffVGomswscZA josh+ultraviolet@joshsymonds.com"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhL0xP1eFVuYEPAvO6t+Mb9ragHnk4dxeBd/1Tmka41 josh+phone@joshsymonds.com"
     ];
-    extraGroups = [ "wheel" config.users.groups.keys.name ];
+    extraGroups = [
+      "wheel"
+      config.users.groups.keys.name
+    ];
   };
-
 
   # Security
   security = {
@@ -149,7 +171,10 @@ in
         commands = [
           {
             command = "ALL";
-            options = [ "SETENV" "NOPASSWD" ];
+            options = [
+              "SETENV"
+              "NOPASSWD"
+            ];
           }
         ];
       }
@@ -176,15 +201,13 @@ in
     };
   };
   programs.ssh.startAgent = true;
-  
 
   services.tailscale = {
     enable = true;
     package = pkgs.tailscale;
     useRoutingFeatures = "server";
-    openFirewall = true;  # Open firewall for Tailscale
+    openFirewall = true; # Open firewall for Tailscale
   };
-
 
   programs.zsh.enable = true;
 
@@ -312,8 +335,7 @@ in
   };
   environment.etc."homepage/config/bookmarks.yaml" = {
     mode = "0644";
-    text = ''
-    '';
+    text = '''';
   };
   environment.etc."homepage/config/widgets.yaml" = {
     mode = "0644";
@@ -421,7 +443,10 @@ in
     defaultNetwork.settings.dns_enabled = true;
     # Enable cgroup v2 for better container resource management
     enableNvidia = false; # Set to true if you have NVIDIA GPU
-    extraPackages = [ pkgs.podman-compose pkgs.podman-tui ];
+    extraPackages = [
+      pkgs.podman-compose
+      pkgs.podman-tui
+    ];
   };
 
   virtualisation.oci-containers = {
@@ -494,9 +519,15 @@ in
   # Remote mounts check service
   systemd.services.remote-mounts = {
     description = "Check if remote mounts are available";
-    after = [ "network.target" "remote-fs.target" ];
+    after = [
+      "network.target"
+      "remote-fs.target"
+    ];
     before = [ "podman-bazarr.service" ];
-    wantedBy = [ "multi-user.target" "podman-bazarr.service" ];
+    wantedBy = [
+      "multi-user.target"
+      "podman-bazarr.service"
+    ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -518,19 +549,12 @@ in
       podman-tui
       jellyfin-ffmpeg
       chromium
+      signal-cli
     ];
 
     loginShellInit = ''
       eval $(ssh-agent)
     '';
-  };
-
-  # Signal CLI Bot configuration
-  # Create /etc/signal-bot/phone-number with: echo "+1234567890" | sudo tee /etc/signal-bot/phone-number
-  services.signal-cli-bot = {
-    enable = true;
-    phoneNumberFile = "/etc/signal-bot/phone-number";
-    registrationComplete = true;
   };
 
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
