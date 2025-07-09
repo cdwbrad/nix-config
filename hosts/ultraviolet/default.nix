@@ -159,6 +159,8 @@ in
     extraGroups = [
       "wheel"
       config.users.groups.keys.name
+      "podman"
+      "docker"
     ];
   };
 
@@ -437,9 +439,10 @@ in
     '';
   };
 
+  # Podman for existing media containers
   virtualisation.podman = {
     enable = true;
-    dockerCompat = true;
+    dockerCompat = false;  # Disable compat since we have real Docker
     defaultNetwork.settings.dns_enabled = true;
     # Enable cgroup v2 for better container resource management
     enableNvidia = false; # Set to true if you have NVIDIA GPU
@@ -447,6 +450,14 @@ in
       pkgs.podman-compose
       pkgs.podman-tui
     ];
+  };
+  
+  # Docker for development tools (Kind, ctlptl, etc)
+  virtualisation.docker = {
+    enable = true;
+    enableOnBoot = true;
+    # Use a separate storage driver to avoid conflicts
+    storageDriver = "overlay2";
   };
 
   virtualisation.oci-containers = {
