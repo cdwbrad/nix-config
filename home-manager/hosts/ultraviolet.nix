@@ -38,7 +38,7 @@
       lsof # List open files/ports
       inetutils # Network utilities (includes netstat-like tools)
       git # Version control (if not already available)
-      helm
+      kubernetes-helm
     ];
   };
 
