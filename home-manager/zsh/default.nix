@@ -28,6 +28,15 @@
       export ZVM_CURSOR_STYLE_ENABLED=false
       export XL_SECRET_PROVIDER=FILE
       export WINEDLLOVERRIDES="d3dcompiler_47=n;d3d11=n,b"
+      
+      # Set up Prisma to use Nix-provided engines on NixOS
+      ${lib.optionalString pkgs.stdenv.isLinux ''
+        export PRISMA_SCHEMA_ENGINE_BINARY="${pkgs.prisma-engines}/bin/schema-engine"
+        export PRISMA_QUERY_ENGINE_LIBRARY="${pkgs.prisma-engines}/lib/libquery_engine.node"
+        export PRISMA_QUERY_ENGINE_BINARY="${pkgs.prisma-engines}/bin/query-engine"
+        export PRISMA_FMT_BINARY="${pkgs.prisma-engines}/bin/prisma-fmt"
+      ''}
+      
       source ~/.secrets
     '';
 
@@ -38,7 +47,18 @@
     };
 
     initContent = ''
-      [ -d "/opt/homebrew/bin" ] && export PATH=''${PATH}:/opt/homebrew/bin
+      # Prepend Homebrew to PATH so it takes precedence over Nix packages
+      # This fixes issues with broken Nix packages like shellspec
+      [ -d "/opt/homebrew/bin" ] && export PATH=/opt/homebrew/bin:''${PATH}
+
+      # Disable mouse reporting in shell when not in tmux
+      # This prevents raw mouse escape sequences from appearing
+      if [ -z "$TMUX" ] && [ -n "$SSH_TTY" ]; then
+        printf '\e[?1000l'  # Disable mouse tracking
+        printf '\e[?1002l'  # Disable cell motion tracking
+        printf '\e[?1003l'  # Disable all motion tracking
+        printf '\e[?1006l'  # Disable SGR extended mode
+      fi
 
       # Import TMUX_DEVSPACE from tmux environment if we're in tmux
       if [ -n "$TMUX" ]; then
@@ -48,12 +68,9 @@
         fi
       fi
 
-      function async-ssh-add {
-        if [ -f "''${HOME}/.ssh/github" ] && ! ssh-add -l >/dev/null; then
-          ssh-add "''${HOME}/.ssh/github"
-        fi
-      }
-      async-ssh-add > /dev/null &!
+      # SSH agent is now managed by systemd (Linux) or launchd (macOS)
+      # Keys are automatically loaded by the ssh-agent service
+      # Use 'ssh-add-git-keys' to manually reload keys if needed
 
       function set-title-precmd() {
         printf "\e]2;%s\a" "''${PWD/#$HOME/~}"
@@ -75,9 +92,11 @@
         source "$(fzf-share)/completion.zsh"
       fi
 
-      if type it &>/dev/null
-      then
-      source $(brew --prefix)/share/zsh/site-functions/_it
+      if type it &>/dev/null; then
+        # Only source brew completions on macOS where brew is available
+        if [[ "$(uname)" == "Darwin" ]] && type brew &>/dev/null; then
+          source $(brew --prefix)/share/zsh/site-functions/_it
+        fi
         eval "$(it wrapper)"
       fi
 

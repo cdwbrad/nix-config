@@ -133,6 +133,7 @@ in
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINTWmaNJwRqzDMdfVOXbX6FNjcJ94VRK+aKLI2NqrcWV josh+morningstar@joshsymonds.com"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID0OvTKlW2Vk5WA11YOQ6SNDS4KsT9I1ffVGomswscZA josh+ultraviolet@joshsymonds.com"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhL0xP1eFVuYEPAvO6t+Mb9ragHnk4dxeBd/1Tmka41 josh+phone@joshsymonds.com"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIORmNHlIFi2MWPh9H0olD2VBvPNK7+wJkA+A/3wCOtZN josh+vermissian@joshsymonds.com"
     ];
     extraGroups = [ "wheel" config.users.groups.keys.name ];
   };
@@ -189,9 +190,7 @@ in
       traceroute
     ];
 
-    loginShellInit = ''
-      eval $(ssh-agent)
-    '';
+    # SSH agent is now managed by systemd user service
   };
 
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion

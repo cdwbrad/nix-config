@@ -5,7 +5,8 @@ in
 { inputs, outputs, lib, config, pkgs, ... }: {
   # You can import other NixOS modules here
   imports = [
-    ../common.nix
+    # Skip common.nix to avoid NFS mounts and other unnecessary configs
+    ./home-automation.nix  # Z-Wave bridge, MQTT, and notifications
 
     # You can also split up your configuration and import pieces of it here:
     # ./users.nix
@@ -14,23 +15,16 @@ in
     ./hardware-configuration.nix
   ];
 
-  # Hardware setup
+  # Hardware setup (minimal for headless Z-Wave bridge)
   hardware = {
     cpu = {
       intel.updateMicrocode = true;
     };
-    graphics = {
-      enable = true;
-      extraPackages = with pkgs; [
-        intel-media-driver
-        intel-vaapi-driver
-        vaapiVdpau
-        intel-compute-runtime # OpenCL filter support (hardware tonemapping and subtitle burn-in)
-        vpl-gpu-rt # QSV on 11th gen or newer
-        intel-media-sdk # QSV up to 11th gen
-      ];
-    };
-    enableAllFirmware = true;
+    # No graphics drivers needed for headless operation
+    graphics.enable = false;
+    # Only enable specific firmware needed for this hardware
+    enableAllFirmware = false;
+    enableRedistributableFirmware = true;
   };
 
   nixpkgs = {
@@ -60,23 +54,35 @@ in
     nixPath = lib.mapAttrsToList (key: value: "${key}=${value.to.path}") config.nix.registry;
 
     optimise.automatic = true;
+    
+    # Aggressive garbage collection for limited storage
+    gc = {
+      automatic = true;
+      dates = "weekly";
+      options = lib.mkForce "--delete-older-than 3d";  # Override common.nix setting
+    };
 
     settings = {
       # Enable flakes and new 'nix' command
       experimental-features = "nix-command flakes";
-      # Deduplicate and optimize nix store
-
+      
+      # Optimize for slow disk and limited resources
+      download-buffer-size = 268435456; # 256MB buffer to avoid "buffer full" warnings
+      max-substitution-jobs = 4; # Parallel downloads
+      cores = 2; # Limit build parallelism on weak CPU
+      
       # Caches
       substituters = [
-        # "https://hyprland.cachix.org"
         "https://cache.nixos.org"
-        # "https://nixpkgs-wayland.cachix.org"
+        "https://nix-community.cachix.org" # For common packages like starship
       ];
       trusted-public-keys = [
-        # "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
         "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
-        # "nixpkgs-wayland.cachix.org-1:3lwxaILxMRkVhehr5StQprHdEo4IrE8sRho9R9HOLYA="
+        "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       ];
+      
+      # Trust joshsymonds for remote builds from ultraviolet
+      trusted-users = [ "root" "joshsymonds" ];
     };
   };
 
@@ -126,6 +132,7 @@ in
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINTWmaNJwRqzDMdfVOXbX6FNjcJ94VRK+aKLI2NqrcWV josh+morningstar@joshsymonds.com"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID0OvTKlW2Vk5WA11YOQ6SNDS4KsT9I1ffVGomswscZA josh+ultraviolet@joshsymonds.com"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhL0xP1eFVuYEPAvO6t+Mb9ragHnk4dxeBd/1Tmka41 josh+phone@joshsymonds.com"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIORmNHlIFi2MWPh9H0olD2VBvPNK7+wJkA+A/3wCOtZN josh+vermissian@joshsymonds.com"
     ];
     extraGroups = [ "wheel" config.users.groups.keys.name ];
   };
@@ -163,32 +170,6 @@ in
 
   services.rpcbind.enable = true;
 
-  services.mullvad-vpn = {
-    enable = true;
-    package = pkgs.mullvad-vpn;
-  };
-
-  services.transmission = {
-    enable = true;
-    openPeerPorts = true;
-    openRPCPort = true;
-    package = pkgs.transmission_3;
-    settings = {
-      bind-address-ipv4 = "0.0.0.0";
-      download-dir = "/mnt/video/torrents";
-      rpc-bind-address = "0.0.0.0";
-      rpc-whitelist = "127.0.0.1,172.31.0.*";
-      rpc-host-whitelist = "transmission.home.husbuddies.gay";
-      download-queue-size = 10;
-      incomplete-dir-enabled = false;
-    };
-  };
-
-  services.sabnzbd = {
-    enable = true;
-    package = pkgs.sabnzbd;
-  };
-
   # Environment
   environment = {
     pathsToLink = [ "/share/zsh" ];
@@ -201,9 +182,7 @@ in
       unar
     ];
 
-    loginShellInit = ''
-      eval $(ssh-agent)
-    '';
+    # SSH agent is now managed by systemd user service
   };
 
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion

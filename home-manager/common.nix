@@ -1,8 +1,9 @@
-{ inputs
-, lib
-, config
-, pkgs
-, ...
+{
+  inputs,
+  lib,
+  config,
+  pkgs,
+  ...
 }:
 {
   # You can import other home-manager modules here
@@ -15,6 +16,7 @@
     ./git
     ./go
     ./k9s
+    ./ssh-agent
     ./zsh
     ./starship
   ];
@@ -43,12 +45,18 @@
       shellspec
       socat
       wireguard-tools
+      inputs.cc-tools.packages.${pkgs.system}.default
       k9s
       starlark-lsp
+      terraform
       autossh
       eternal-terminal
       gnumake
       yq
+      gh
+      parallel
+      just
+      kitty.terminfo  # Ensure proper terminal handling for SSH sessions
 
       # Tilt/Starlark tools
       tilt
@@ -57,6 +65,24 @@
 
       # Kubernetes tools
       kubernetes-helm
+      kubectl
+      kustomize
+
+      # AWS tools
+      git-remote-codecommit
+
+      # Python
+      (python3.withPackages (ps: with ps; [
+        pip
+        pytest
+        pyyaml
+        black
+        # Gmail analysis dependencies
+        google-api-python-client
+        google-auth
+        google-auth-oauthlib
+        google-auth-httplib2
+      ]))
 
       # LSP servers
       lua-language-server
@@ -69,12 +95,7 @@
       stylua
       nixpkgs-fmt
       nodePackages.prettier
-      black
       gofumpt
-
-      # Python testing
-      python3Packages.pytest
-      python3Packages.pyyaml
 
       # Python package management
       uv
